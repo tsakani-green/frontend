@@ -84,6 +84,7 @@ export const UserProvider = ({ children }) => {
         localStorage.removeItem('user');
         setToken(null);
         setUser(null);
+        console.log('Invalid token, cleared authentication');
       } else {
         // Network/other error — fall back to minimal info from localStorage (if any)
         const stored = localStorage.getItem('user');
@@ -110,7 +111,9 @@ export const UserProvider = ({ children }) => {
       formData.append('username', username);
       formData.append('password', password);
 
-      const response = await axios.post(`${API_URL}/api/auth/login`, formData);
+      const response = await axios.post(`${API_URL}/api/auth/login`, formData, {
+        timeout: 10000,
+      });
       
       const { access_token, user_id, role } = response.data;
       
@@ -136,9 +139,23 @@ export const UserProvider = ({ children }) => {
       return { success: true, role: role };
     } catch (error) {
       console.error('Login error:', error);
+      
+      // Provide more helpful error messages for different types of failures
+      let errorMessage = 'Login failed';
+      
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+        errorMessage = `Cannot connect to backend at ${API_URL}. Check if the server is running and VITE_API_URL is set correctly.`;
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Invalid username or password';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Login failed' 
+        error: errorMessage
       };
     }
   };
